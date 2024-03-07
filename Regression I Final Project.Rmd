@@ -1,0 +1,241 @@
+---
+title: "Regression I Final Project"
+author: "Carina Doyle"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+rm (list = ls())
+BMIdata <- read.table("PATH_W1.csv", header = TRUE, sep = ",")
+```
+
+BMI: body mass index (numerical)
+
+Old: age range in years (1=15-17, 0=12-14)
+Male: gender (1=male, 0=female)
+Asthma: diagnosed (1=yes, 0=no)
+
+MHint: mental health internalizing symptoms (1=yes, 0=no)
+MHext: mental health externalizing symptoms (1=yes,0=no)
+
+Race: race/ethnicity (1=hispanic, 2=white/reference, 3=black, 4=other)
+Pedu: highest grade/school completed by parent (1=less than HS, 2=HS or equivalent, 3=some college or AA, 4=bachelor, 5=advanced)
+
+Evertob: ever used any tobacco product (1=yes, 0=no)
+Ftobacco: living with tobacco user (numerical)
+NTobType: total number of tobacco type used (numerical)
+SecondhandCig: number of hrs exposed (numerical)
+Druguse: ever used (1=yes, 0=no)
+Alcohol: ever used (1=yes, 0=no)
+Marij: ever used (1=yes, 0=no)
+
+Running descriptive statistics, checking for missing values
+```{r}
+library(Hmisc)
+describe(BMIdata)
+```
+Recoding Race = White into reference group
+```{r}
+Path2 <- BMIdata
+Path2$Race[Path2$Race==2] <- 0
+```
+
+Relabeling Old and Male
+```{r}
+Path2$Old <- factor(Path2$Old,labels = c("12-14 Years Old", "15-17 Years Old"))
+Path2$Male <- factor(Path2$Male,labels = c("Male", "Female"))
+```
+Univariable Analysis 
+DV: BMI
+IV: Evertob + Old + Male + factor(Race)
+```{r}
+table(Path2$Evertob, exclude = NULL)
+
+EvertobTAB <- table(Path2$Evertob)
+prop.table(EvertobTAB)
+
+summary(Path2$BMI)
+sd(Path2$BMI)
+IQR(Path2$BMI)
+
+aggregate(BMI ~ Evertob, Path2, mean)
+aggregate(BMI ~ Evertob, Path2, sd)
+aggregate(BMI ~ Evertob, Path2, median)
+aggregate(BMI ~ Evertob, Path2, IQR)
+```
+
+```{r}
+table(Path2$Old)
+OldTAB <- table(Path2$Old)
+prop.table(OldTAB)
+
+AgeByTobTAB <- table(Path2$Old, Path2$Evertob)
+AgeByTobTAB
+prop.table(AgeByTobTAB)
+```
+
+```{r}
+table(Path2$Male)
+MaleTAB <- table(Path2$Male)
+prop.table(MaleTAB)
+
+GenderByTobTAB <- table(Path2$Male, Path2$Evertob)
+GenderByTobTAB
+prop.table(GenderByTobTAB)
+```
+
+```{r}
+table(Path2$Race)
+RaceTAB <- table(Path2$Race)
+prop.table(RaceTAB)
+
+RaceByTobTAB <- table(Path2$Race, Path2$Evertob)
+RaceByTobTAB
+prop.table(RaceByTobTAB)
+```
+
+```{r}
+table(Path2$MHint)
+MHintTAB <- table(Path2$MHint)
+prop.table(MHintTAB)
+
+MHintByTobTAB <- table(Path2$MHint, Path2$Evertob)
+MHintByTobTAB
+prop.table(MHintByTobTAB)
+```
+
+```{r}
+table(Path2$MHext)
+MHextTAB <- table(Path2$MHext)
+prop.table(MHextTAB)
+
+MHextByTobTAB <- table(Path2$MHext, Path2$Evertob)
+MHextByTobTAB
+prop.table(MHextByTobTAB)
+```
+
+Bivariable Analysis
+DV: BMI - continuous
+IV: Evertob - dichotomous, Old - dichotomous, Male - dichotomous, Race - polytomous, MHint - dichotomous, MHext - dichotomous
+```{r}
+attach(Path2)
+agelm <- lm(BMI~Old)
+summary(agelm)
+confint(agelm, 'Old', level=0.95)
+
+evertoblm <- lm(BMI~Evertob)
+summary(evertoblm)
+confint(evertoblm, 'Evertob', level=0.95)
+
+racelm <- lm(BMI~factor(Race))
+summary(racelm)
+confint(racelm, c('factor(Race)1','factor(Race)3', 'factor(Race)4') , level=0.95)
+
+malelm <- lm(BMI~Male)
+summary(malelm)
+confint(malelm, 'Male', level=0.95)
+
+intlm <- lm(BMI~MHint)
+summary(intlm)
+confint(intlm, 'MHint', level=0.95)
+
+extlm <- lm(BMI~MHext)
+summary(extlm)
+confint(extlm, 'MHext', level=0.95)
+
+detach(Path2)
+```
+
+---Model 1---
+```{r}
+model1 <- lm(BMI ~ Evertob + Old + Male + factor(Race), data=Path2)
+summary(model1)
+```
+
+#Assumption 1- Linearity 
+##Since the IVs are categorical, there is no need to establish linearity between IV and DV. 
+
+#Assumption 2 - Independence of residuals 
+```{r}
+library(lmtest)
+dwtest(model1)
+```
+#Assumption 3 - Normality 
+```{r}
+par (mfrow = c (1,2)) #standardized residuals vs fitted plot
+qqnorm(rstandard(model1), main = "Q-Q plot")
+abline(0,1,col = "blue")
+hist(rstandard(model1), main = " ")
+
+plot(model1,which=2)
+```
+
+#Assumption 4 - Equal Variance
+```{r}
+plot(model1, which = 3)
+
+lmodResFit <- lm(sqrt(abs(residuals(model1))) ~ fitted(model1))
+summary(lmodResFit)
+```
+
+#Assumption 5 - No Influential outliers
+```{r}
+library(faraway)
+cd <- cooks.distance(model1)
+n <- nrow(Path2)
+p <- 4
+cd[which(abs(cd)>4/n)]
+halfnorm(cd, main= "Halfnorm plot for Cook's Distance")
+```
+
+#Assumption 6 - No Strong Multicollinearity 
+```{r}
+library(car)
+car::vif(lm(BMI~Evertob+Old+Race, data=Path2)) #Assumption 6 not violated
+```
+
+---Model 2a - moderated effect of tobacco use on BMI by gender
+
+Creating a model with interaction between tobacco use and gender
+```{r}
+model2a <- lm(BMI ~ Evertob + Old + Male + factor(Race) + Evertob*Male, data=Path2)
+summary(model2a)
+```
+
+Checking significance of interaction term/Likelihood ratio of models
+```{r}
+anova(model1, model2a)
+```
+
+---Model 2b - moderated effect of tobacco use on BMI by age group
+
+Creating a model with interaction between tobacco use and age group
+```{r}
+model2b <- lm(BMI ~ Evertob + Old + Male + factor(Race) + Evertob*Old, data=Path2)
+summary(model2b)
+```
+
+Checking significance of interaction term/Likelihood ratio of models
+```{r}
+anova(model1, model2b)
+```
+
+---Model 3---
+
+Creating a model including internal and external mental health symptoms
+```{r}
+model3a <- lm(BMI ~ Evertob + Old + Male + factor(Race) + Evertob + MHint + MHext, data=Path2)
+summary(model3a)
+```
+
+Creating a model with gender interacting with tobacco use, internal and external mental health symptoms
+```{r}
+model3b <- lm(BMI ~ Evertob + Old + Male + factor(Race) + Evertob*Male + MHint*Male + MHext*Male, data=Path2)
+summary(model3b)
+```
+
+Checking significance of interaction term/Likelihood ratio of models
+```{r}
+anova(model3a, model3b)
+```
